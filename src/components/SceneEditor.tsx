@@ -1,4 +1,19 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+  Play,
+  Clock,
+  Scissors,
+  ArrowLineDown,
+  Sparkle,
+  ArrowsClockwise,
+  MagicWand,
+  UploadSimple,
+  Copy,
+  CaretLeft,
+  CaretRight,
+  ArrowCounterClockwise,
+  Check,
+} from '@phosphor-icons/react';
 import { useStore } from '../store';
 import { fmtTime, fmtDur } from '../lib/format';
 import { buildWordLines, WordSpec } from '../lib/caption';
@@ -245,7 +260,7 @@ export default function SceneEditor({ sceneId }: { sceneId: string }) {
             {fmtTime(scene.start)} – {fmtTime(scene.end)} · {fmtDur(scene.end - scene.start)}
           </span>
         </div>
-        <div className="row gap">
+        <div className="row gap editor-actions">
           <button
             className="btn small-btn"
             onClick={() => {
@@ -254,42 +269,44 @@ export default function SceneEditor({ sceneId }: { sceneId: string }) {
             }}
             title="Play just this scene"
           >
-            ▶ Preview scene
+            <Play size={13} weight="fill" /> Preview scene
           </button>
+          <div className="mode-toggle-group">
+            <button
+              className={`btn small-btn ${timingMode ? 'primary' : ''}`}
+              disabled={timedWords.length === 0 || project.captionStyle === 'static'}
+              title={
+                project.captionStyle === 'static'
+                  ? 'Word timing only applies to the highlight and word-by-word styles'
+                  : 'Fix a word that highlights at the wrong moment'
+              }
+              onClick={() => {
+                if (timingMode) stopTiming();
+                setTimingMode(!timingMode);
+                setSplitMode(false);
+              }}
+            >
+              <Clock size={13} /> Fix timing
+            </button>
+            <button
+              className={`btn small-btn ${splitMode ? 'primary' : ''}`}
+              disabled={words.length < 2}
+              onClick={() => {
+                setSplitMode(!splitMode);
+                stopTiming();
+                setTimingMode(false);
+              }}
+            >
+              <Scissors size={13} /> Split
+            </button>
+          </div>
           <button
-            className={`btn small-btn ${timingMode ? 'primary' : ''}`}
-            disabled={timedWords.length === 0 || project.captionStyle === 'static'}
-            title={
-              project.captionStyle === 'static'
-                ? 'Word timing only applies to the highlight and word-by-word styles'
-                : 'Fix a word that highlights at the wrong moment'
-            }
-            onClick={() => {
-              if (timingMode) stopTiming();
-              setTimingMode(!timingMode);
-              setSplitMode(false);
-            }}
-          >
-            ⏱ Fix timing
-          </button>
-          <button
-            className={`btn small-btn ${splitMode ? 'primary' : ''}`}
-            disabled={words.length < 2}
-            onClick={() => {
-              setSplitMode(!splitMode);
-              stopTiming();
-              setTimingMode(false);
-            }}
-          >
-            ✂ Split
-          </button>
-          <button
-            className="btn small-btn"
+            className="btn small-btn ghost editor-actions-spacer"
             disabled={idx >= project.scenes.length - 1}
             onClick={() => mergeSceneWithNext(scene.id)}
             title="Merge this scene with the next one"
           >
-            ⇣ Merge with next
+            <ArrowLineDown size={13} /> Merge with next
           </button>
         </div>
       </div>
@@ -351,7 +368,7 @@ export default function SceneEditor({ sceneId }: { sceneId: string }) {
                 onClick={() => nudgeTimingWord(-NUDGE_STEP)}
                 title="Highlight this word earlier (←)"
               >
-                ◀ Earlier
+                <CaretLeft size={13} /> Earlier
               </button>
               <span className={`nudge-val ${nudgeVal ? 'tuned' : ''}`}>
                 <input
@@ -404,7 +421,7 @@ export default function SceneEditor({ sceneId }: { sceneId: string }) {
                 onClick={() => nudgeTimingWord(NUDGE_STEP)}
                 title="Highlight this word later (→)"
               >
-                Later ▶
+                Later <CaretRight size={13} />
               </button>
               <button
                 className="btn small-btn"
@@ -420,10 +437,10 @@ export default function SceneEditor({ sceneId }: { sceneId: string }) {
                     : 'Put this word back on its estimated time'
                 }
               >
-                ↺ Reset
+                <ArrowCounterClockwise size={13} /> Reset
               </button>
               <button className="btn small-btn" onClick={stopTiming} title="Stop looping (Esc)">
-                ✓ Done
+                <Check size={13} weight="bold" /> Done
               </button>
             </div>
           )}
@@ -487,7 +504,17 @@ export default function SceneEditor({ sceneId }: { sceneId: string }) {
           {scene.imageError && <div className="error-box small">{scene.imageError}</div>}
           <div className="row gap wrap">
             <button className="btn primary" disabled={generating} onClick={() => generateSceneImage(scene.id)}>
-              {generating ? 'Generating…' : scene.imageId ? '↻ Regenerate' : '✦ Generate image'}
+              {generating ? (
+                'Generating…'
+              ) : scene.imageId ? (
+                <>
+                  <ArrowsClockwise size={14} /> Regenerate
+                </>
+              ) : (
+                <>
+                  <Sparkle size={14} weight="fill" /> Generate image
+                </>
+              )}
             </button>
             <button
               className="btn"
@@ -499,10 +526,16 @@ export default function SceneEditor({ sceneId }: { sceneId: string }) {
                 setDrafting(false);
               }}
             >
-              {drafting ? 'Drafting…' : '✎ Draft prompt with AI'}
+              {drafting ? (
+                'Drafting…'
+              ) : (
+                <>
+                  <MagicWand size={14} /> Draft prompt with AI
+                </>
+              )}
             </button>
             <button className="btn" onClick={() => fileRef.current?.click()}>
-              ⇪ Use my own image
+              <UploadSimple size={14} /> Use my own image
             </button>
             <button
               className={`btn ${reuseMode ? 'primary' : ''}`}
@@ -510,7 +543,7 @@ export default function SceneEditor({ sceneId }: { sceneId: string }) {
               title={reusable.length === 0 ? 'No other scene has an image yet' : 'Reuse an image from another scene'}
               onClick={() => setReuseMode(!reuseMode)}
             >
-              ⧉ Reuse image
+              <Copy size={14} /> Reuse image
             </button>
             <input
               ref={fileRef}

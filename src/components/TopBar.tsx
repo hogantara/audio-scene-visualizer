@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { ArrowCounterClockwise, ArrowClockwise, DownloadSimple, Keyboard } from '@phosphor-icons/react';
 import { useStore } from '../store';
 import { mod } from '../lib/keyboard';
 import ShortcutsModal from './ShortcutsModal';
@@ -30,20 +31,37 @@ export default function TopBar() {
       <div className="topbar-right">
         <span className="muted small">{savedAt ? 'Saved' : 'Autosave on'}</span>
         <div className="history-controls">
-          <button className="btn icon" onClick={undo} disabled={!canUndo} title={`Undo (${mod('Z')})`}>
-            ↶
+          <button
+            className="btn icon"
+            onClick={undo}
+            disabled={!canUndo}
+            title={`Undo (${mod('Z')})`}
+            aria-label="Undo"
+          >
+            <ArrowCounterClockwise size={17} weight="bold" />
           </button>
-          <button className="btn icon" onClick={redo} disabled={!canRedo} title={`Redo (${mod('⇧Z')})`}>
-            ↷
+          <button
+            className="btn icon"
+            onClick={redo}
+            disabled={!canRedo}
+            title={`Redo (${mod('⇧Z')})`}
+            aria-label="Redo"
+          >
+            <ArrowClockwise size={17} weight="bold" />
           </button>
         </div>
         {project.transcribed && project.scenes.length > 0 && (
           <button className="btn primary" onClick={() => setExportOpen(true)}>
-            ⇩ Export MP4
+            <DownloadSimple size={15} weight="bold" /> Export MP4
           </button>
         )}
-        <button className="btn ghost" onClick={() => setShortcutsOpen(true)} title="Keyboard shortcuts">
-          ⌨
+        <button
+          className="btn ghost"
+          onClick={() => setShortcutsOpen(true)}
+          title="Keyboard shortcuts"
+          aria-label="Keyboard shortcuts"
+        >
+          <Keyboard size={17} />
         </button>
         <button className="btn ghost" onClick={() => setSettingsOpen(true)}>
           Settings
