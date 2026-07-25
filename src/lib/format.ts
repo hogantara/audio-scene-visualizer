@@ -8,3 +8,8 @@ export function fmtTime(t: number): string {
 export function fmtDur(t: number): string {
   return `${Math.round(t)}s`;
 }
+
+/** Format an estimated USD cost. Sub-cent totals get an extra decimal so they don't all round to $0.00. */
+export function fmtUSD(v: number): string {
+  return `$${v.toFixed(v < 0.01 && v > 0 ? 3 : 2)}`;
+}

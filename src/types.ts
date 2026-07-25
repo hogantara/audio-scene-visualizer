@@ -95,4 +95,27 @@ export interface Project {
   scenes: Scene[];
   chunks: Chunk[] | null;
   transcribed: boolean;
+  /** Running tally of Gemini API usage for this project, so cost stays visible while you work. */
+  usage: UsageStats;
 }
+
+/** Accumulated Gemini API usage for one project. Costs are an estimate — see lib/gemini.ts pricing table. */
+export interface UsageStats {
+  transcribeCalls: number;
+  promptCalls: number;
+  imageCalls: number;
+  imagesGenerated: number;
+  inputTokens: number;
+  outputTokens: number;
+  costUSD: number;
+}
+
+export const EMPTY_USAGE: UsageStats = {
+  transcribeCalls: 0,
+  promptCalls: 0,
+  imageCalls: 0,
+  imagesGenerated: 0,
+  inputTokens: 0,
+  outputTokens: 0,
+  costUSD: 0,
+};
