@@ -12,7 +12,11 @@ export default function Workspace() {
       </aside>
       <main className="right-pane">
         <Player />
-        {selectedSceneId && <SceneEditor key={selectedSceneId} sceneId={selectedSceneId} />}
+        {selectedSceneId ? (
+          <SceneEditor key={selectedSceneId} sceneId={selectedSceneId} />
+        ) : (
+          <div className="editor-empty muted">Select a scene from the list to start editing.</div>
+        )}
       </main>
     </div>
   );

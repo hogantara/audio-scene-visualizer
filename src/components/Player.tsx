@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { SkipBack, SkipForward, Play, Pause, ArrowsInSimple } from '@phosphor-icons/react';
 import { useStore } from '../store';
 import { fmtTime } from '../lib/format';
 import { font } from '../lib/fonts';
@@ -365,7 +366,9 @@ export default function Player() {
         )}
         {!playing && (
           <div className="stage-play-hint">
-            <span>▶</span>
+            <span>
+              <Play size={22} weight="fill" />
+            </span>
           </div>
         )}
         {bbox && (
@@ -395,19 +398,19 @@ export default function Player() {
             setCaptionPos({ x: 0.5, y: 0.5 });
           }}
         >
-          ⤢ Center subtitle
+          <ArrowsInSimple size={13} /> Center subtitle
         </button>
       </div>
 
       <div className="transport">
-        <button className="btn icon" onClick={() => jumpScene(-1)} title="Previous scene">
-          ⏮
+        <button className="btn icon" onClick={() => jumpScene(-1)} title="Previous scene" aria-label="Previous scene">
+          <SkipBack size={16} weight="fill" />
         </button>
-        <button className="btn icon play" onClick={togglePlay} title="Play / pause">
-          {playing ? '⏸' : '▶'}
+        <button className="btn icon play" onClick={togglePlay} title="Play / pause" aria-label="Play or pause">
+          {playing ? <Pause size={18} weight="fill" /> : <Play size={18} weight="fill" />}
         </button>
-        <button className="btn icon" onClick={() => jumpScene(1)} title="Next scene">
-          ⏭
+        <button className="btn icon" onClick={() => jumpScene(1)} title="Next scene" aria-label="Next scene">
+          <SkipForward size={16} weight="fill" />
         </button>
         <span className="time-label">
           {fmtTime(time)} / {fmtTime(duration)}

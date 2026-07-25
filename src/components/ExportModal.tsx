@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { DownloadSimple } from '@phosphor-icons/react';
 import { useStore } from '../store';
 import { fmtTime } from '../lib/format';
 import { exportVideo, ExportResult } from '../lib/exportVideo';
@@ -149,7 +150,7 @@ export default function ExportModal() {
                 Close
               </button>
               <button className="btn primary" onClick={download}>
-                ⇩ Download {result.ext.toUpperCase()}
+                <DownloadSimple size={14} weight="bold" /> Download {result.ext.toUpperCase()}
               </button>
             </div>
           </>
