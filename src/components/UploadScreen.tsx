@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Microphone } from '@phosphor-icons/react';
 import { useStore } from '../store';
 import { fmtTime } from '../lib/format';
 
@@ -61,14 +62,17 @@ export default function UploadScreen() {
       </header>
 
       <div className="upload-body">
-        <h1>Turn a recording into a video.</h1>
-        <p className="muted">
-          Upload your narration — it gets transcribed, split into scenes, and each scene gets an
+        <h1 className="reveal" style={{ animationDelay: '0ms' }}>
+          Turn a recording into a video.
+        </h1>
+        <p className="muted reveal" style={{ animationDelay: '70ms' }}>
+          Upload your narration, it gets transcribed, split into scenes, and each scene gets an
           AI illustration, synced to your voice.
         </p>
 
         <div
-          className={`dropzone ${dragOver ? 'over' : ''} ${uploadBusy ? 'busy' : ''}`}
+          className={`dropzone reveal ${dragOver ? 'over' : ''} ${uploadBusy ? 'busy' : ''}`}
+          style={{ animationDelay: '140ms' }}
           onClick={() => !uploadBusy && inputRef.current?.click()}
           onDragOver={(e) => {
             e.preventDefault();
@@ -88,9 +92,11 @@ export default function UploadScreen() {
             </div>
           ) : (
             <div className="dz-inner">
-              <div className="dz-icon">🎙️</div>
+              <div className="dz-icon">
+                <Microphone size={22} weight="regular" />
+              </div>
               <strong>Drop your audio here</strong>
-              <span className="muted">or click to browse — mp3, wav, m4a · up to 60 min / 500 MB</span>
+              <span className="muted">or click to browse - mp3, wav, m4a · up to 60 min / 500 MB</span>
             </div>
           )}
           <input
@@ -107,7 +113,7 @@ export default function UploadScreen() {
 
         {uploadError && <div className="error-box">{uploadError}</div>}
 
-        <ol className="steps muted">
+        <ol className="steps muted reveal" style={{ animationDelay: '200ms' }}>
           <li>Upload audio</li>
           <li>Auto-transcribe &amp; split into scenes</li>
           <li>Generate an illustration per scene</li>
@@ -115,7 +121,7 @@ export default function UploadScreen() {
         </ol>
 
         {projects.length > 0 && (
-          <div className="project-library">
+          <div className="project-library reveal" style={{ animationDelay: '260ms' }}>
             <h2>Your projects</h2>
             <ul className="project-list">
               {projects.map((p) => (

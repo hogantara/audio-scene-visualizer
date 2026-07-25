@@ -334,12 +334,16 @@ kbd {
 }
 .upload-body h1 {
   margin: 0;
-  font-size: 30px;
-  letter-spacing: -0.02em;
+  font-size: clamp(28px, 3.6vw, 38px);
+  font-weight: 650;
+  letter-spacing: -0.025em;
+  line-height: 1.15;
 }
 .upload-body > p {
   margin: 0;
   max-width: 460px;
+  font-size: 15px;
+  line-height: 1.6;
 }
 
 .dropzone {
@@ -349,13 +353,16 @@ kbd {
   background: var(--panel);
   padding: 44px 24px;
   cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
+  transition: border-color 0.15s, background 0.15s, transform 0.15s;
   margin-top: 10px;
 }
 .dropzone:hover,
 .dropzone.over {
   border-color: var(--accent);
   background: var(--accent-soft);
+}
+.dropzone:active:not(.busy) {
+  transform: scale(0.995);
 }
 .dropzone.busy {
   cursor: default;
@@ -364,10 +371,40 @@ kbd {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
 }
 .dz-icon {
-  font-size: 30px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-soft);
+  color: var(--accent);
+  margin-bottom: 2px;
+  transition: transform 0.15s;
+}
+.dropzone:hover .dz-icon,
+.dropzone.over .dz-icon {
+  transform: scale(1.06);
+}
+
+/* First-load entrance stagger for the front-door screen only; collapses to instant under reduced motion. */
+@media (prefers-reduced-motion: no-preference) {
+  .reveal {
+    animation: upload-reveal 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+}
+@keyframes upload-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .steps {
@@ -428,6 +465,11 @@ kbd {
   border-radius: 10px;
   background: var(--panel);
   padding: 4px;
+  transition: border-color 0.15s, transform 0.15s;
+}
+.project-card:hover {
+  border-color: #d6d3d1;
+  transform: translateY(-1px);
 }
 .project-card-main {
   flex: 1;
