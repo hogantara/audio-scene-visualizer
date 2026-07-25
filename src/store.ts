@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { CaptionEntrance, CaptionPos, CaptionStyle, Project, Scene } from './types';
+import { EMPTY_USAGE } from './types';
 import {
   DEFAULT_FONT,
   DEFAULT_HIGHLIGHT,
@@ -12,6 +13,7 @@ import * as db from './lib/db';
 import type { ProjectSummary } from './lib/db';
 import { decodeAudio, computePeaks, validateFile, planChunks, encodeWavSlice, MAX_DURATION_SEC, DecodedAudio } from './lib/audio';
 import { transcribeChunk, generateImage, draftPrompt } from './lib/gemini';
+import type { UsageDelta } from './lib/gemini';
 import {
   buildScenes,
   buildFinalPrompt,
@@ -104,6 +106,7 @@ interface State {
   nudgeSceneWord: (sceneId: string, key: string, delta: number, word: { s: number; e: number }) => void;
   resetSceneWordOffset: (sceneId: string, key: string) => void;
   setLoopRegion: (region: LoopRegion | null) => void;
+  resetUsage: () => void;
   startTranscription: () => Promise<void>;
   selectScene: (id: string | null) => void;
   setActiveScene: (id: string | null) => void;
@@ -234,6 +237,23 @@ export const useStore = create<State>((set, get) => {
     });
   };
 
+  /** Accumulate one API call's usage/cost onto the project. Bookkeeping, not a user edit — silent. */
+  const recordUsage = (u: UsageDelta) =>
+    mutate(
+      (p) => {
+        if (u.kind === 'transcribe') p.usage.transcribeCalls++;
+        if (u.kind === 'prompt') p.usage.promptCalls++;
+        if (u.kind === 'image') {
+          p.usage.imageCalls++;
+          p.usage.imagesGenerated += u.images;
+        }
+        p.usage.inputTokens += u.inputTokens;
+        p.usage.outputTokens += u.outputTokens;
+        p.usage.costUSD += u.costUSD;
+      },
+      { silent: true }
+    );
+
   return {
     phase: 'loading',
     project: null,
@@ -304,6 +324,7 @@ export const useStore = create<State>((set, get) => {
       if (!project.captionEntrance) project.captionEntrance = DEFAULT_CAPTION_ENTRANCE;
       if (!project.wordOffsets) project.wordOffsets = {};
       if (!project.sceneWordOffsets) project.sceneWordOffsets = {};
+      if (!project.usage) project.usage = { ...EMPTY_USAGE };
       if (!project.updatedAt) project.updatedAt = project.createdAt;
       // Fix up projects transcribed before word timestamps were clamped to the audio's real length —
       // a word whose onset fell past the end could never reach its karaoke/word-reveal moment.
@@ -452,6 +473,7 @@ export const useStore = create<State>((set, get) => {
         scenes: [],
         chunks: null,
         transcribed: false,
+        usage: { ...EMPTY_USAGE },
       };
       await db.saveAudio(id, file);
       await db.saveProject(project);
@@ -536,6 +558,7 @@ export const useStore = create<State>((set, get) => {
         if (Object.keys(m).length === 0) delete p.sceneWordOffsets[sceneId];
       }),
     setLoopRegion: (region) => set({ loopRegion: region }),
+    resetUsage: () => mutate((p) => void (p.usage = { ...EMPTY_USAGE }), { silent: true }),
 
     startTranscription: async () => {
       const { apiKey, project, transcribing } = get();
@@ -562,8 +585,9 @@ export const useStore = create<State>((set, get) => {
           set({ transcribeStatus: total > 1 ? `Transcribing part ${i + 1} of ${total}…` : 'Transcribing…' });
           const c = get().project!.chunks![i];
           const wav = encodeWavSlice(decoded.samples, decoded.sampleRate, c.startSec, c.endSec);
-          const words = await transcribeChunk(apiKey, wav, c.startSec, c.endSec - c.startSec);
+          const { words, usage } = await transcribeChunk(apiKey, wav, c.startSec, c.endSec - c.startSec);
           mutate((p) => void (p.chunks![i].words = words), { silent: true });
+          recordUsage(usage);
         }
         set({ transcribeStatus: 'Building scenes…' });
         const words = get().project!.chunks!.flatMap((c) => c.words!);
@@ -651,7 +675,8 @@ export const useStore = create<State>((set, get) => {
         { silent: true }
       );
       try {
-        const blob = await generateImage(apiKey, finalPrompt);
+        const { blob, usage } = await generateImage(apiKey, finalPrompt);
+        recordUsage(usage);
         await attachImage(id, blob);
       } catch (e) {
         mutate(
@@ -677,7 +702,8 @@ export const useStore = create<State>((set, get) => {
       const scene = findScene(project, id);
       if (!scene) return;
       try {
-        const prompt = await draftPrompt(apiKey, scene.text);
+        const { prompt, usage } = await draftPrompt(apiKey, scene.text);
+        recordUsage(usage);
         mutate((p) => {
           const s = findScene(p, id);
           if (s) s.prompt = prompt;

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ArrowCounterClockwise, ArrowClockwise, DownloadSimple, Keyboard } from '@phosphor-icons/react';
 import { useStore } from '../store';
 import { mod } from '../lib/keyboard';
+import { fmtUSD } from '../lib/format';
 import ShortcutsModal from './ShortcutsModal';
 
 export default function TopBar() {
@@ -30,6 +31,16 @@ export default function TopBar() {
       </div>
       <div className="topbar-right">
         <span className="muted small">{savedAt ? 'Saved' : 'Autosave on'}</span>
+        {project.usage &&
+          project.usage.transcribeCalls + project.usage.promptCalls + project.usage.imageCalls > 0 && (
+            <button
+              className="btn ghost small-btn usage-badge"
+              onClick={() => setSettingsOpen(true)}
+              title={`Estimated Gemini API cost for this project — click for a breakdown.\n${project.usage.transcribeCalls} transcription call(s), ${project.usage.promptCalls} prompt draft(s), ${project.usage.imagesGenerated} image(s) generated.`}
+            >
+              ~{fmtUSD(project.usage.costUSD)}
+            </button>
+          )}
         <div className="history-controls">
           <button
             className="btn icon"

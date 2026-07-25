@@ -11,6 +11,48 @@ function headers(key: string): HeadersInit {
   return { 'x-goog-api-key': key, 'Content-Type': 'application/json' };
 }
 
+/**
+ * A single call's contribution to running usage, returned alongside each function's result so the
+ * store can accumulate it onto `Project.usage`. Cost is an estimate (see PRICING below) — Gemini
+ * doesn't return billed cost, only token/image counts, so this multiplies those by published list
+ * prices as of Nov 2025. Re-check ai.google.dev/gemini-api/docs/pricing if it drifts noticeably.
+ */
+export interface UsageDelta {
+  kind: 'transcribe' | 'prompt' | 'image';
+  inputTokens: number;
+  outputTokens: number;
+  images: number;
+  costUSD: number;
+}
+
+/**
+ * Per-model list pricing, $ per 1M tokens (input/output) plus a flat per-image rate for image
+ * models, which Gemini bills per output image rather than by output token count. Approximate —
+ * intended to give a running order-of-magnitude estimate, not an invoice.
+ */
+const PRICING: Record<string, { inPer1M: number; outPer1M?: number; perImage?: number }> = {
+  'gemini-2.5-flash': { inPer1M: 0.3, outPer1M: 2.5 },
+  'gemini-3.1-flash-image': { inPer1M: 0.5, perImage: 0.067 },
+  'gemini-3.1-flash-image-preview': { inPer1M: 0.5, perImage: 0.067 },
+  'gemini-2.5-flash-image': { inPer1M: 0.3, perImage: 0.039 },
+  'gemini-2.0-flash-preview-image-generation': { inPer1M: 0.3, perImage: 0.039 },
+};
+
+interface UsageMetadata {
+  promptTokenCount?: number;
+  candidatesTokenCount?: number;
+}
+
+function estimateCost(model: string, usage: UsageMetadata | undefined, images: number): { inputTokens: number; outputTokens: number; costUSD: number } {
+  const inputTokens = usage?.promptTokenCount ?? 0;
+  const outputTokens = usage?.candidatesTokenCount ?? 0;
+  const price = PRICING[model];
+  if (!price) return { inputTokens, outputTokens, costUSD: 0 };
+  let cost = (inputTokens / 1_000_000) * price.inPer1M;
+  cost += price.perImage ? images * price.perImage : (outputTokens / 1_000_000) * (price.outPer1M ?? 0);
+  return { inputTokens, outputTokens, costUSD: cost };
+}
+
 async function apiError(res: Response): Promise<Error & { status: number }> {
   let message = `${res.status} ${res.statusText}`;
   try {
@@ -71,7 +113,7 @@ export async function transcribeChunk(
   wav: Blob,
   offsetSec: number,
   clipSec: number
-): Promise<Word[]> {
+): Promise<{ words: Word[]; usage: UsageDelta }> {
   const audio = await blobToBase64(wav);
   const res = await fetch(url(TEXT_MODEL), {
     method: 'POST',
@@ -117,6 +159,8 @@ export async function transcribeChunk(
   });
   if (!res.ok) throw await apiError(res);
   const j = await res.json();
+  const { inputTokens, outputTokens, costUSD } = estimateCost(TEXT_MODEL, j.usageMetadata, 0);
+  const usage: UsageDelta = { kind: 'transcribe', inputTokens, outputTokens, images: 0, costUSD };
   const raw = j.candidates?.[0]?.content?.parts?.[0]?.text;
   if (!raw) {
     const reason = j.candidates?.[0]?.finishReason || j.promptFeedback?.blockReason;
@@ -169,11 +213,11 @@ export async function transcribeChunk(
       });
     });
   }
-  return words;
+  return { words, usage };
 }
 
 /** Draft a short English image prompt from (possibly Indonesian) scene text. */
-export async function draftPrompt(key: string, sceneText: string): Promise<string> {
+export async function draftPrompt(key: string, sceneText: string): Promise<{ prompt: string; usage: UsageDelta }> {
   const res = await fetch(url(TEXT_MODEL), {
     method: 'POST',
     headers: headers(key),
@@ -199,7 +243,8 @@ export async function draftPrompt(key: string, sceneText: string): Promise<strin
     .join('')
     .trim();
   if (!out) throw new Error('Empty response from the model.');
-  return out;
+  const { inputTokens, outputTokens, costUSD } = estimateCost(TEXT_MODEL, j.usageMetadata, 0);
+  return { prompt: out, usage: { kind: 'prompt', inputTokens, outputTokens, images: 0, costUSD } };
 }
 
 interface ImageAttempt {
@@ -224,7 +269,7 @@ const IMAGE_ATTEMPTS: ImageAttempt[] = [
 
 let cachedAttempt: ImageAttempt | null = null;
 
-async function requestImage(key: string, prompt: string, a: ImageAttempt): Promise<Blob> {
+async function requestImage(key: string, prompt: string, a: ImageAttempt): Promise<{ blob: Blob; usage: UsageDelta }> {
   const generationConfig: Record<string, unknown> = { responseModalities: a.modalities };
   if (a.aspect) generationConfig.imageConfig = { aspectRatio: '16:9' };
   const res = await fetch(url(a.model), {
@@ -240,18 +285,22 @@ async function requestImage(key: string, prompt: string, a: ImageAttempt): Promi
     const reason = j.candidates?.[0]?.finishReason || j.promptFeedback?.blockReason;
     throw new Error(reason ? `No image was returned (${reason}).` : 'No image data in the response.');
   }
-  return base64ToBlob(img.inlineData.data, img.inlineData.mimeType || 'image/png');
+  const { inputTokens, outputTokens, costUSD } = estimateCost(a.model, j.usageMetadata, 1);
+  return {
+    blob: base64ToBlob(img.inlineData.data, img.inlineData.mimeType || 'image/png'),
+    usage: { kind: 'image', inputTokens, outputTokens, images: 1, costUSD },
+  };
 }
 
 /** Generate a 16:9 illustration, trying image models/params in order and caching the first that works. */
-export async function generateImage(key: string, prompt: string): Promise<Blob> {
+export async function generateImage(key: string, prompt: string): Promise<{ blob: Blob; usage: UsageDelta }> {
   if (cachedAttempt) return requestImage(key, prompt, cachedAttempt);
   let lastErr: unknown;
   for (const a of IMAGE_ATTEMPTS) {
     try {
-      const blob = await requestImage(key, prompt, a);
+      const result = await requestImage(key, prompt, a);
       cachedAttempt = a;
-      return blob;
+      return result;
     } catch (e) {
       if ((e as { status?: number }).status === 401 || (e as { status?: number }).status === 403) throw e;
       lastErr = e;

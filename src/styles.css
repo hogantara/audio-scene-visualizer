@@ -1218,6 +1218,37 @@ input.nudge-input:focus {
   gap: 8px;
 }
 
+.usage-badge {
+  font-variant-numeric: tabular-nums;
+}
+.usage-panel {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.usage-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 600;
+}
+.usage-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.usage-table td {
+  padding: 2px 0;
+}
+.usage-table td:last-child {
+  text-align: right;
+  color: var(--muted);
+}
+
 .export-modal {
   max-width: 480px;
 }
