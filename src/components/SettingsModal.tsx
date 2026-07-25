@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useStore } from '../store';
-import { fmtUSD } from '../lib/format';
+import { fmtIDR } from '../lib/format';
 
 export default function SettingsModal() {
   const apiKey = useStore((s) => s.apiKey);
@@ -63,9 +63,9 @@ export default function SettingsModal() {
               </tbody>
             </table>
             <p className="muted small">
-              ~{fmtUSD(usage.costUSD)} estimated so far, from {(usage.inputTokens + usage.outputTokens).toLocaleString()}{' '}
-              tokens across {calls} call{calls === 1 ? '' : 's'}. Estimate only, from list pricing — not a bill from
-              Google.
+              ~{fmtIDR(usage.costUSD)} estimated so far, from {(usage.inputTokens + usage.outputTokens).toLocaleString()}{' '}
+              tokens across {calls} call{calls === 1 ? '' : 's'}. Estimate only, converted from Gemini's USD list
+              pricing at a fixed rate — not a bill from Google.
             </p>
           </div>
         )}

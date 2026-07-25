@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { ArrowCounterClockwise, ArrowClockwise, DownloadSimple, Keyboard } from '@phosphor-icons/react';
 import { useStore } from '../store';
 import { mod } from '../lib/keyboard';
-import { fmtUSD } from '../lib/format';
+import { fmtIDR } from '../lib/format';
 import ShortcutsModal from './ShortcutsModal';
 
 export default function TopBar() {
@@ -38,7 +38,7 @@ export default function TopBar() {
               onClick={() => setSettingsOpen(true)}
               title={`Estimated Gemini API cost for this project — click for a breakdown.\n${project.usage.transcribeCalls} transcription call(s), ${project.usage.promptCalls} prompt draft(s), ${project.usage.imagesGenerated} image(s) generated.`}
             >
-              ~{fmtUSD(project.usage.costUSD)}
+              ~{fmtIDR(project.usage.costUSD)}
             </button>
           )}
         <div className="history-controls">
