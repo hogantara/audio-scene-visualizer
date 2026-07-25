@@ -9,7 +9,14 @@ export function fmtDur(t: number): string {
   return `${Math.round(t)}s`;
 }
 
-/** Format an estimated USD cost. Sub-cent totals get an extra decimal so they don't all round to $0.00. */
-export function fmtUSD(v: number): string {
-  return `$${v.toFixed(v < 0.01 && v > 0 ? 3 : 2)}`;
+/**
+ * Fixed USD→IDR rate for display only, set from the market rate around late July 2026. Gemini's own
+ * pricing is USD-denominated (see lib/gemini.ts), so cost is tracked in USD and converted here purely
+ * for display — re-check a current rate if this drifts far from actual.
+ */
+const IDR_PER_USD = 17900;
+
+/** Format an estimated cost (tracked in USD) as Indonesian Rupiah. */
+export function fmtIDR(usd: number): string {
+  return `Rp${Math.round(usd * IDR_PER_USD).toLocaleString('id-ID')}`;
 }
