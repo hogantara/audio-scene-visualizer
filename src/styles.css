@@ -1286,3 +1286,111 @@ input.nudge-input:focus {
     grid-template-columns: 1fr;
   }
 }
+
+/* ---- Storyboard import ---- */
+.modal-wide {
+  max-width: 720px;
+}
+.dropzone.compact {
+  padding: 26px 20px;
+  margin-top: 0;
+}
+.modal-actions.spread {
+  justify-content: space-between;
+}
+
+.sb-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sb-section {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  padding: 9px 11px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.sb-section:hover {
+  border-color: #d6d3d1;
+}
+.sb-section.on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.sb-section input {
+  accent-color: var(--accent);
+  margin: 0;
+  flex: none;
+}
+.sb-section-label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.sb-preview {
+  max-height: 260px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.sb-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+.sb-table td {
+  padding: 6px 9px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+.sb-table tr:last-child td {
+  border-bottom: none;
+}
+.sb-num {
+  width: 26px;
+  text-align: right;
+}
+.sb-time {
+  width: 52px;
+  white-space: nowrap;
+}
+.sb-text {
+  /* The narration is the column worth reading, so it takes whatever width is left. */
+  line-height: 1.45;
+}
+.sb-asset {
+  width: 190px;
+  word-break: break-all;
+}
+
+.sb-missing ul {
+  margin: 5px 0 0;
+  padding-left: 18px;
+  word-break: break-all;
+}
+
+.warn-text {
+  color: #b45309;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.review-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 5px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  color: #b45309;
+  font-size: 11.5px;
+  cursor: help;
+}

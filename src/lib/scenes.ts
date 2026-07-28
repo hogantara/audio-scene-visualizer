@@ -1,5 +1,7 @@
 import type { Project, Scene, Word } from '../types';
+import { MAX_DP_CELLS, lcsMatch, normalize } from './align';
 import { MAX_WORD_SEC } from './gemini';
+import type { StoryboardBeat } from './storyboard';
 
 const MIN_SEC = 10;
 const MAX_SEC = 30;
@@ -186,6 +188,138 @@ export function buildScenes(words: Word[], duration: number): Scene[] {
   const scenes = cuts.map((c, k) => makeScene(words, c, k + 1 < cuts.length ? cuts[k + 1] : words.length));
   recomputeBounds(scenes, words, duration);
   return scenes;
+}
+
+/**
+ * The image prompt for an imported beat. The storyboard's "Why this image" column is already a
+ * written image brief, so it leads; the narration follows for context via the same `defaultPrompt`
+ * used everywhere else. A beat with no rationale (an unfilled generation brief) falls back to the
+ * plain narration prompt.
+ */
+export function storyboardPrompt(beat: StoryboardBeat): string {
+  const base = defaultPrompt(beat.narration);
+  return beat.rationale ? `${beat.rationale} — ${base}` : base;
+}
+
+/** Tokens of a beat's narration, in the same normalized form the transcript is compared in. */
+function beatTokens(beat: StoryboardBeat): string[] {
+  return beat.narration
+    .split(/\s+/)
+    .map(normalize)
+    .filter((t) => t !== '');
+}
+
+/**
+ * Fraction of a beat's words that must be found in the transcript for its alignment to be trusted.
+ * Low on purpose: the storyboard is the authored script and the transcript is ASR of a performance
+ * of it, so mishearings, elisions and spelling differences are routine. Half the words landing in
+ * order is already strong evidence of where the beat sits.
+ */
+const MIN_MATCH_RATIO = 0.5;
+
+/**
+ * How far past the cursor to look for a beat's words, as a multiple of the beat's own length plus a
+ * floor. Alignment is monotonic (the cursor only moves forward), so this window only has to cover
+ * the drift a single beat can accumulate — keeping the LCS grid small enough for hour-long audio,
+ * where a single whole-transcript DP would be billions of cells.
+ */
+const WINDOW_FACTOR = 4;
+const WINDOW_FLOOR = 60;
+
+/** First word index at or after time `t`. Used to place beats that failed to align. */
+function indexAtTime(words: Word[], t: number): number {
+  if (!Number.isFinite(t)) return -1;
+  const i = words.findIndex((w) => w.s >= t);
+  return i === -1 ? words.length : i;
+}
+
+export interface AlignedBeats {
+  scenes: Scene[];
+  /** Indices into `scenes` whose bounds are estimated rather than matched — worth a human check. */
+  unaligned: number[];
+}
+
+/**
+ * Turn storyboard beats into scenes by finding each beat's narration in the transcript.
+ *
+ * The storyboard's own `Time` column is deliberately NOT used for cutting: those timings are
+ * word-count estimates (the files say so), whereas the transcript carries real per-word times. Each
+ * beat's text is matched against the transcript instead, and `recomputeBounds` then places every cut
+ * at the midpoint of the silence between words — so cuts land in pauses, not mid-word.
+ *
+ * Matching runs beat by beat behind a forward-only cursor, which makes the result monotonic by
+ * construction: a beat can never claim words an earlier beat already took, so a single badly-worded
+ * beat cannot scramble the ones after it. A beat whose words can't be found falls back to its
+ * `Time` column and is reported in `unaligned` so the UI can flag it.
+ */
+export function alignBeats(beats: StoryboardBeat[], words: Word[], duration: number): AlignedBeats {
+  if (beats.length === 0 || words.length === 0) return { scenes: [], unaligned: [] };
+
+  const src = words.map((w) => normalize(w.w));
+  // `starts[i]` is the matched first-word index of beat i, or -1 when the beat did not align.
+  const starts: number[] = new Array(beats.length).fill(-1);
+  let cursor = 0;
+
+  for (let i = 0; i < beats.length; i++) {
+    const toks = beatTokens(beats[i]);
+    if (toks.length === 0 || cursor >= words.length) continue;
+    const span = Math.min(words.length - cursor, Math.max(toks.length * WINDOW_FACTOR, toks.length + WINDOW_FLOOR));
+    if (toks.length * span > MAX_DP_CELLS) continue;
+    const match = lcsMatch(toks, src.slice(cursor, cursor + span));
+
+    let first = -1;
+    let last = -1;
+    let matched = 0;
+    for (let k = 0; k < match.length; k++) {
+      if (match[k] === -1) continue;
+      matched++;
+      if (first === -1) first = match[k];
+      last = match[k];
+    }
+    if (matched === 0 || matched / toks.length < MIN_MATCH_RATIO) continue;
+
+    starts[i] = cursor + first;
+    cursor = cursor + last + 1;
+  }
+
+  // Place the beats that did not align, using their storyboard timing as the guide, and repair any
+  // ordering the fallbacks introduce. The first scene must start at word 0 regardless — scenes tile
+  // the whole audio, so no speech may sit outside a scene.
+  const unaligned: number[] = [];
+  for (let i = 0; i < beats.length; i++) {
+    if (starts[i] === -1) {
+      unaligned.push(i);
+      starts[i] = indexAtTime(words, beats[i].tStart);
+    }
+  }
+  starts[0] = 0;
+  for (let i = 1; i < starts.length; i++) {
+    // Every scene needs at least one word, and word indices must strictly increase.
+    if (starts[i] <= starts[i - 1]) starts[i] = starts[i - 1] + 1;
+  }
+
+  // A storyboard can describe more beats than the audio has words (a wrong section picked, or an
+  // audio file that was re-cut shorter). Those trailing beats have nothing to show, so drop them
+  // rather than emit empty scenes.
+  const usable = starts.findIndex((s) => s >= words.length);
+  const count = usable === -1 ? beats.length : Math.max(1, usable);
+
+  const estimated = new Set(unaligned);
+  const scenes: Scene[] = [];
+  for (let i = 0; i < count; i++) {
+    const from = starts[i];
+    const to = i + 1 < count ? starts[i + 1] : words.length;
+    const s = makeScene(words, from, to);
+    s.text = beats[i].narration;
+    s.prompt = storyboardPrompt(beats[i]);
+    const asset = beats[i].assetName;
+    if (asset) s.assetName = asset;
+    if (estimated.has(i)) s.estimatedBounds = true;
+    scenes.push(s);
+  }
+  recomputeBounds(scenes, words, duration);
+
+  return { scenes, unaligned: unaligned.filter((i) => i < count) };
 }
 
 /** Merge scene at index i with the next one, in place. Returns the removed scene's orphaned imageId (to delete), if any. */

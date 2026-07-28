@@ -1,4 +1,5 @@
 import type { CaptionEntrance, CaptionStyle, Word } from '../types';
+import { MAX_DP_CELLS, lcsMatch, normalize } from './align';
 import type { SourceWord } from './scenes';
 import { TRANSITION_SEC } from './transition';
 
@@ -123,48 +124,6 @@ function runsToWords(runs: Run[]): PlainWord[] {
     }
   }
   return words;
-}
-
-/** Compare key for matching a displayed token against a transcript word: case/punctuation-insensitive. */
-function normalize(t: string): string {
-  return t.toLowerCase().normalize('NFKD').replace(/[^\p{L}\p{N}]/gu, '');
-}
-
-/** Above this many DP cells, skip alignment and fall back to spreading evenly. Never hit in practice. */
-const MAX_DP_CELLS = 400_000;
-
-/**
- * Longest common subsequence over normalized tokens. Returns, for each `a` index, the matched `b`
- * index or -1. Matches are order-preserving, so the result is monotonically increasing.
- */
-function lcsMatch(a: string[], b: string[]): Int32Array {
-  const n = a.length;
-  const m = b.length;
-  // dp[i][j] = LCS length of a[i:] and b[j:], stored row-major in a flat (n+1)*(m+1) grid.
-  const dp = new Int32Array((n + 1) * (m + 1));
-  for (let i = n - 1; i >= 0; i--) {
-    for (let j = m - 1; j >= 0; j--) {
-      dp[i * (m + 1) + j] =
-        a[i] === b[j]
-          ? dp[(i + 1) * (m + 1) + j + 1] + 1
-          : Math.max(dp[(i + 1) * (m + 1) + j], dp[i * (m + 1) + j + 1]);
-    }
-  }
-  const out = new Int32Array(n).fill(-1);
-  let i = 0;
-  let j = 0;
-  while (i < n && j < m) {
-    if (a[i] === b[j]) {
-      out[i] = j;
-      i++;
-      j++;
-    } else if (dp[(i + 1) * (m + 1) + j] >= dp[i * (m + 1) + j + 1]) {
-      i++;
-    } else {
-      j++;
-    }
-  }
-  return out;
 }
 
 /** Give words [from, to) an equal slice of [a, b]. A zero-width span collapses them all onto `a`. */

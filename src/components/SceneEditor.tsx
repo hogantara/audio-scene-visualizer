@@ -13,6 +13,7 @@ import {
   CaretRight,
   ArrowCounterClockwise,
   Check,
+  WarningCircle,
 } from '@phosphor-icons/react';
 import { useStore } from '../store';
 import { fmtTime, fmtDur } from '../lib/format';
@@ -259,6 +260,14 @@ export default function SceneEditor({ sceneId }: { sceneId: string }) {
           <span className="muted">
             {fmtTime(scene.start)} – {fmtTime(scene.end)} · {fmtDur(scene.end - scene.start)}
           </span>
+          {scene.estimatedBounds && (
+            <div
+              className="review-badge"
+              title="This beat's narration wasn't found in the transcript, so its cut points came from the storyboard's estimated timecodes. Check them against the waveform."
+            >
+              <WarningCircle size={12} weight="fill" /> Timing estimated — check the waveform
+            </div>
+          )}
         </div>
         <div className="row gap editor-actions">
           <button

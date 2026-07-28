@@ -8,8 +8,10 @@ import {
   Circle,
   Sparkle,
   Pause,
+  FileText,
 } from '@phosphor-icons/react';
 import { useStore } from '../store';
+import StoryboardModal from './StoryboardModal';
 import { fmtTime, fmtDur } from '../lib/format';
 import { FONTS } from '../lib/fonts';
 import { stripMarkup } from '../lib/caption';
@@ -48,6 +50,7 @@ export default function SceneList() {
 
   const missing = project.scenes.filter((s) => s.imageStatus !== 'ready').length;
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [storyboardOpen, setStoryboardOpen] = useState(false);
 
   return (
     <div className="scene-list-wrap">
@@ -69,15 +72,24 @@ export default function SceneList() {
           )}
         </div>
 
-        <button
-          type="button"
-          className="settings-toggle"
-          onClick={() => setSettingsOpen((v) => !v)}
-          aria-expanded={settingsOpen}
-        >
-          {settingsOpen ? <CaretDown size={13} /> : <CaretRight size={13} />}
-          Style &amp; subtitles
-        </button>
+        <div className="row space-between">
+          <button
+            type="button"
+            className="settings-toggle"
+            onClick={() => setSettingsOpen((v) => !v)}
+            aria-expanded={settingsOpen}
+          >
+            {settingsOpen ? <CaretDown size={13} /> : <CaretRight size={13} />}
+            Style &amp; subtitles
+          </button>
+          <button
+            className="btn ghost small-btn"
+            onClick={() => setStoryboardOpen(true)}
+            title="Rebuild these scenes from a markdown storyboard"
+          >
+            <FileText size={13} weight="regular" /> Storyboard
+          </button>
+        </div>
 
         {settingsOpen && (
           <div className="settings-panel">
@@ -217,6 +229,8 @@ export default function SceneList() {
           );
         })}
       </div>
+
+      {storyboardOpen && <StoryboardModal onClose={() => setStoryboardOpen(false)} />}
     </div>
   );
 }
