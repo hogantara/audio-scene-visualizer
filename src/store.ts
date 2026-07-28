@@ -15,6 +15,7 @@ import { decodeAudio, computePeaks, validateFile, planChunks, encodeWavSlice, MA
 import { transcribeChunk, generateImage, draftPrompt } from './lib/gemini';
 import type { UsageDelta } from './lib/gemini';
 import {
+  alignBeats,
   buildScenes,
   buildFinalPrompt,
   defaultPrompt,
@@ -22,6 +23,7 @@ import {
   splitScene,
   clampWordsToDuration,
 } from './lib/scenes';
+import type { StoryboardSection } from './lib/storyboard';
 
 const API_KEY_STORAGE = 'asv_gemini_key';
 const uid = () => crypto.randomUUID();
@@ -44,6 +46,29 @@ export interface SeekRequest {
   play?: boolean;
   stopAt?: number;
   nonce: number;
+}
+
+/** Outcome of matching a folder of artwork against the scenes' storyboard asset names. */
+export interface StoryboardImageResult {
+  /** Scenes that got an image. */
+  matched: number;
+  /** Scenes that named an asset. `matched` out of this many. */
+  total: number;
+  /** Asset names no file in the folder matched — usually a rename, so worth showing. */
+  missing: string[];
+}
+
+/**
+ * Keys a filename can be matched under, most to least specific. The loose key drops the extension
+ * and every non-alphanumeric character, which is what lets a storyboard's hand-typed name reach the
+ * real file despite punctuation drift — including the `..._golden_hou[r]_...jpeg` typo in the Sirah
+ * storyboard, whose brackets simply vanish on both sides.
+ */
+function assetKeys(name: string): string[] {
+  const base = name.trim().replace(/^.*[/\\]/, '');
+  const lower = base.toLowerCase();
+  const stem = lower.replace(/\.[a-z0-9]{1,5}$/, '');
+  return [base, lower, stem.replace(/[^a-z0-9]/g, '')];
 }
 
 /** An audio span the player repeats indefinitely — used to audition one word's timing. */
@@ -119,6 +144,16 @@ interface State {
   draftScenePrompt: (id: string) => Promise<void>;
   uploadSceneImage: (id: string, file: File) => Promise<void>;
   reuseSceneImage: (id: string, sourceImageId: string) => void;
+  /**
+   * Replace the scene list with one storyboard section's beats, aligned to the transcript.
+   * Returns how many scenes were created and how many need a timing check.
+   */
+  importStoryboard: (section: StoryboardSection) => { scenes: number; needsReview: number };
+  /**
+   * Attach images to imported scenes by matching filenames against their `assetName`. Takes a whole
+   * folder's worth of files; non-images and files no scene asked for are ignored.
+   */
+  attachStoryboardImages: (files: File[]) => Promise<StoryboardImageResult>;
   generateAllMissing: () => Promise<void>;
   stopQueue: () => void;
   toast: (msg: string) => void;
@@ -733,6 +768,81 @@ export const useStore = create<State>((set, get) => {
         s.imageStatus = 'ready';
         s.imageError = undefined;
       });
+    },
+
+    importStoryboard: (section) => {
+      const none = { scenes: 0, needsReview: 0 };
+      const project = get().project;
+      if (!project) return none;
+      if (!project.transcribed || project.words.length === 0) {
+        get().toast('Transcribe the audio first — the storyboard is matched against its words.');
+        return none;
+      }
+      const { scenes, unaligned } = alignBeats(section.beats, project.words, project.duration);
+      if (scenes.length === 0) {
+        get().toast('None of the storyboard beats could be applied to this audio.');
+        return none;
+      }
+      // Historized on purpose: unlike transcription this replaces work you may already have done,
+      // so undo has to be the way back.
+      mutate((p) => {
+        p.scenes = scenes;
+        // Displayed-word timing corrections are keyed by scene id, and every imported scene is a
+        // new object with a new id, so the old entries can no longer find their words. Corrections
+        // in `wordOffsets` are keyed by ABSOLUTE word index and survive the import untouched —
+        // hand-fixed transcript timing carries over to the new scenes for free.
+        p.sceneWordOffsets = {};
+      });
+      // Images from the replaced scenes are left in place for undo; gcImages reclaims them once
+      // those snapshots age out of the history window.
+      set({ selectedSceneId: scenes[0].id, activeSceneId: null });
+      return { scenes: scenes.length, needsReview: unaligned.length };
+    },
+
+    attachStoryboardImages: async (files) => {
+      const project = get().project;
+      if (!project) return { matched: 0, total: 0, missing: [] };
+      const wanted = project.scenes.filter((s) => s.assetName);
+      if (wanted.length === 0) return { matched: 0, total: 0, missing: [] };
+
+      // A picked folder also holds video and stray files (the Sirah asset folder has an .mp4), so
+      // only images are candidates. First file wins a key, so a duplicate name never silently
+      // reassigns a scene that already resolved.
+      const byKey = new Map<string, File>();
+      for (const f of files) {
+        if (!f.type.startsWith('image/')) continue;
+        for (const k of assetKeys(f.name)) if (!byKey.has(k)) byKey.set(k, f);
+      }
+
+      const assigned: { sceneId: string; imgId: string; blob: File }[] = [];
+      const missing: string[] = [];
+      for (const s of wanted) {
+        const file = assetKeys(s.assetName!)
+          .map((k) => byKey.get(k))
+          .find(Boolean);
+        if (!file) {
+          missing.push(s.assetName!);
+          continue;
+        }
+        const imgId = uid();
+        await db.saveImage(imgId, file);
+        assigned.push({ sceneId: s.id, imgId, blob: file });
+      }
+
+      assigned.forEach((a) => addImageUrl(a.imgId, a.blob));
+      // One mutation for the whole folder, so a bulk attach is a single undo step rather than one
+      // per image. A scene deleted while the blobs were saving is simply skipped — gcImages
+      // reclaims its orphaned blob.
+      mutate((p) => {
+        for (const a of assigned) {
+          const s = findScene(p, a.sceneId);
+          if (!s) continue;
+          s.imageId = a.imgId;
+          s.imageStatus = 'ready';
+          s.imageError = undefined;
+        }
+      });
+      return { matched: assigned.length, total: wanted.length, missing };
     },
 
     generateAllMissing: async () => {

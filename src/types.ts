@@ -23,6 +23,17 @@ export interface Scene {
   imageId: string | null;
   imageStatus: ImageStatus;
   imageError?: string;
+  /**
+   * Filename from the Asset column of an imported storyboard beat. Kept after import so a folder of
+   * artwork can be matched to scenes by name in one pass (see `attachStoryboardImages`).
+   */
+  assetName?: string;
+  /**
+   * Set when an imported beat's narration could not be located in the transcript, so its bounds fell
+   * back to the storyboard's estimated timecodes instead of real word timing. Flags the scene for a
+   * human check — every other imported scene is cut on actual silence.
+   */
+  estimatedBounds?: boolean;
 }
 
 /** One transcription unit (~10 min of audio). `words === null` means not yet transcribed, enabling resume-on-retry. */
