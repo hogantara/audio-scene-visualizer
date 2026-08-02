@@ -18,14 +18,14 @@ export const FONTS: FontOption[] = [
   { id: 'bebas', label: 'Bebas Neue', family: "'Bebas Neue', Impact, sans-serif", weight: 400, bold: 400 },
 ];
 
-export const DEFAULT_FONT = 'system';
+export const DEFAULT_FONT = 'cormorant';
 export const DEFAULT_HIGHLIGHT = '#f2c14e';
-/** 1 = original image brightness, 0 = black. 0.6 gives readable contrast without flattening the image. */
-export const DEFAULT_BG_BRIGHTNESS = 0.6;
+/** 1 = original image brightness, 0 = black. 0.45 gives readable contrast without flattening the image. */
+export const DEFAULT_BG_BRIGHTNESS = 0.45;
 /** Subtitle size multiplier; 1 = default auto-fit size. */
-export const DEFAULT_CAPTION_SCALE = 1;
-export const DEFAULT_CAPTION_STYLE: CaptionStyle = 'highlight';
-export const DEFAULT_CAPTION_ENTRANCE: CaptionEntrance = 'fade';
+export const DEFAULT_CAPTION_SCALE = 0.8;
+export const DEFAULT_CAPTION_STYLE: CaptionStyle = 'word';
+export const DEFAULT_CAPTION_ENTRANCE: CaptionEntrance = 'none';
 
 export function font(id: string): FontOption {
   return FONTS.find((f) => f.id === id) ?? FONTS[0];
