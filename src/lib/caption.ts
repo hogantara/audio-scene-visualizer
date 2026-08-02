@@ -1,5 +1,6 @@
 import type { CaptionEntrance, CaptionStyle, Word } from '../types';
 import { MAX_DP_CELLS, lcsMatch, normalize } from './align';
+import { paceSpans } from './pace';
 import type { SourceWord } from './scenes';
 import { TRANSITION_SEC } from './transition';
 
@@ -126,14 +127,21 @@ function runsToWords(runs: Run[]): PlainWord[] {
   return words;
 }
 
-/** Give words [from, to) an equal slice of [a, b]. A zero-width span collapses them all onto `a`. */
+/**
+ * Give words [from, to) a slice of [a, b] each, in proportion to how long they take to say (see
+ * lib/pace) rather than an equal share — these are the words the transcript has no time for, so the
+ * only thing keeping them with the voice is the estimate. A zero-width span collapses them onto `a`.
+ */
 function spread(flat: WordSpec[], from: number, to: number, a: number, b: number): void {
-  const count = to - from;
-  if (count <= 0) return;
-  const step = Math.max(0, b - a) / count;
-  for (let k = 0; k < count; k++) {
-    flat[from + k].start = a + step * k;
-    flat[from + k].end = a + step * (k + 1);
+  if (to - from <= 0) return;
+  const spans = paceSpans(
+    flat.slice(from, to).map((w) => w.text),
+    a,
+    b
+  );
+  for (let k = 0; k < spans.length; k++) {
+    flat[from + k].start = spans[k].s;
+    flat[from + k].end = spans[k].e;
   }
 }
 

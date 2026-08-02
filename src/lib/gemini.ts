@@ -1,4 +1,5 @@
 import type { Word } from '../types';
+import { paceSpans } from './pace';
 
 const BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 const TEXT_MODEL = 'gemini-2.5-flash';
@@ -97,7 +98,8 @@ const FALLBACK_WORD_SEC = 0.3;
 
 /**
  * Transcribe one WAV chunk with Gemini. Gemini returns sentence/phrase-level segments with
- * timestamps; word timings are interpolated evenly within each segment. Timestamps are relative
+ * timestamps; word timings are estimated within each segment from each word's spoken length
+ * (lib/pace) — the segment boundaries are measured, the words inside them are not. Timestamps are relative
  * to the chunk, so they're shifted by `offsetSec` to absolute time. The first word of each segment
  * is flagged (`p`) as a natural phrase boundary for scene chunking.
  *
@@ -203,12 +205,15 @@ export async function transcribeChunk(
   // Rounding to ms can push a value back over the edge, so bound after rounding, not before.
   const maxT = offsetSec + clipSec;
   for (const s of segs) {
-    const per = (s.end - s.start) / s.toks.length;
+    // Within a segment the model gives no per-word timing, so words are placed by how long they
+    // take to say (syllables, plus the pause their punctuation implies) instead of by equal share —
+    // equal shares drift visibly ahead of the voice across a long phrase. See lib/pace.
+    const spans = paceSpans(s.toks, s.start, s.end);
     s.toks.forEach((tk, i) => {
       words.push({
         w: tk,
-        s: Math.min(maxT, Number((offsetSec + s.start + i * per).toFixed(3))),
-        e: Math.min(maxT, Number((offsetSec + s.start + (i + 1) * per).toFixed(3))),
+        s: Math.min(maxT, Number((offsetSec + spans[i].s).toFixed(3))),
+        e: Math.min(maxT, Number((offsetSec + spans[i].e).toFixed(3))),
         ...(i === 0 ? { p: true } : {}),
       });
     });

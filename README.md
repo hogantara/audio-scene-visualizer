@@ -21,7 +21,7 @@ The app uses **your own Google Gemini API key**, entered in-app (Settings, or th
 
 ### A note on timestamp accuracy
 
-Whisper-class models give true per-word timestamps; Gemini returns timestamps at the phrase/sentence level. This app asks Gemini for phrase segments with start/end times and then spreads word timings evenly within each phrase. In practice **phrase-level caption sync is good**, but the per-word karaoke highlight inside a phrase is approximate rather than measured. If you later need tighter word-level sync, the transcription layer (`src/lib/gemini.ts`) is isolated and can be pointed at a Whisper endpoint without touching the rest of the app.
+Whisper-class models give true per-word timestamps; Gemini returns timestamps at the phrase/sentence level. This app asks Gemini for phrase segments with start/end times and then spreads word timings evenly within each phrase. In practice **phrase-level caption sync is good**, but the per-word karaoke highlight inside a phrase is approximate rather than measured. Within a phrase, words are placed by how long they take to say — syllable count plus the pause their punctuation implies (`src/lib/pace.ts`) — rather than by equal share, which drifts ahead of the voice across a long phrase. If you later need tighter word-level sync, the transcription layer (`src/lib/gemini.ts`) is isolated and can be pointed at a Whisper endpoint without touching the rest of the app; note that every hosted word-level ASR either documents a proxy requirement or requires server-minted short-lived tokens for browser use, so that swap costs this app its no-backend property (see issue #11).
 
 ## How it works
 
