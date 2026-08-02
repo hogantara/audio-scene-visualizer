@@ -5,8 +5,9 @@ import type { StoryboardBeat } from './storyboard';
 
 const MIN_SEC = 10;
 const MAX_SEC = 30;
-const PAUSE_GAP = 0.7;
-const SENTENCE_END = /[.!?…]["”')\]]*$/;
+/** Silence long enough to count as a delivery boundary. Shared with the caption-crowding split. */
+export const PAUSE_GAP = 0.7;
+export const SENTENCE_END = /[.!?…]["”')\]]*$/;
 
 const uid = () => crypto.randomUUID();
 
@@ -345,17 +346,46 @@ export function mergeWithNext(p: Project, i: number): string | null {
   return orphan;
 }
 
+export interface SplitOpts {
+  /**
+   * Text for each half. Without it both halves re-take their text from the transcript, which is
+   * right for a hand split of ASR text but would throw away an imported storyboard's authored
+   * narration — so the automatic crowding split supplies the two halves of that text itself.
+   */
+  text?: { first: string; second: string };
+  /**
+   * Give the second half the first's artwork and image brief. Used when the split is a caption fix
+   * within one authored beat: both halves illustrate the same beat, and several scenes may share one
+   * imageId (see `reuseSceneImage`; `gcImages` counts any scene's reference).
+   */
+  inheritImage?: boolean;
+}
+
 /** Split a scene so the word at `relIndex` (relative to the scene) starts the new second half. In place. */
-export function splitScene(p: Project, i: number, relIndex: number): void {
+export function splitScene(p: Project, i: number, relIndex: number, opts: SplitOpts = {}): void {
   const s = p.scenes[i];
   const abs = s.wordStart + relIndex;
   if (abs <= s.wordStart || abs >= s.wordEnd) return;
   const first: Scene = {
     ...s,
     wordEnd: abs,
-    text: sceneText(p.words, s.wordStart, abs),
+    text: opts.text ? opts.text.first : sceneText(p.words, s.wordStart, abs),
   };
   const second = makeScene(p.words, abs, s.wordEnd);
+  if (opts.text) {
+    second.text = opts.text.second;
+    // The parent's prompt describes this beat (a storyboard import folds its "why this image"
+    // rationale into it), so it carries over rather than being re-derived from half the narration.
+    second.prompt = s.prompt.trim() ? s.prompt : defaultPrompt(second.text);
+  }
+  if (opts.inheritImage && s.imageId) {
+    second.imageId = s.imageId;
+    second.imageStatus = 'ready';
+    if (s.assetName) second.assetName = s.assetName;
+  }
   p.scenes.splice(i, 1, first, second);
+  // `first` keeps the scene's id and its text as a prefix, so its displayed-word timing corrections
+  // still key correctly. `second` is a new id with no corrections — the same trade `mergeWithNext`
+  // makes, and the reason occurrence keys are scoped per scene.
   recomputeBounds(p.scenes, p.words, p.duration);
 }

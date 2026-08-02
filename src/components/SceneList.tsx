@@ -9,6 +9,7 @@ import {
   Sparkle,
   Pause,
   FileText,
+  Scissors,
 } from '@phosphor-icons/react';
 import { useStore } from '../store';
 import StoryboardModal from './StoryboardModal';
@@ -47,10 +48,13 @@ export default function SceneList() {
   const generateAllMissing = useStore((s) => s.generateAllMissing);
   const stopQueue = useStore((s) => s.stopQueue);
   const queueActive = useStore((s) => s.queueActive);
+  const fixCrowding = useStore((s) => s.fixCrowding);
+  const toast = useStore((s) => s.toast);
 
   const missing = project.scenes.filter((s) => s.imageStatus !== 'ready').length;
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [storyboardOpen, setStoryboardOpen] = useState(false);
+  const [fixing, setFixing] = useState(false);
 
   return (
     <div className="scene-list-wrap">
@@ -82,13 +86,37 @@ export default function SceneList() {
             {settingsOpen ? <CaretDown size={13} /> : <CaretRight size={13} />}
             Style &amp; subtitles
           </button>
-          <button
-            className="btn ghost small-btn"
-            onClick={() => setStoryboardOpen(true)}
-            title="Rebuild these scenes from a markdown storyboard"
-          >
-            <FileText size={13} weight="regular" /> Storyboard
-          </button>
+          <div className="row gap">
+            <button
+              className="btn ghost small-btn"
+              disabled={fixing}
+              onClick={async () => {
+                setFixing(true);
+                try {
+                  const { split, flagged } = await fixCrowding();
+                  toast(
+                    split === 0 && flagged === 0
+                      ? 'No scene is too crowded to read.'
+                      : `${split} scene${split === 1 ? '' : 's'} split.${
+                          flagged > 0 ? ` ${flagged} still crowded — no safe place to cut.` : ''
+                        }`
+                  );
+                } finally {
+                  setFixing(false);
+                }
+              }}
+              title="Split any scene whose caption is too crowded to read"
+            >
+              <Scissors size={13} weight="regular" /> Fix crowding
+            </button>
+            <button
+              className="btn ghost small-btn"
+              onClick={() => setStoryboardOpen(true)}
+              title="Rebuild these scenes from a markdown storyboard"
+            >
+              <FileText size={13} weight="regular" /> Storyboard
+            </button>
+          </div>
         </div>
 
         {settingsOpen && (

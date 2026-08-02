@@ -18,6 +18,7 @@ export default function StoryboardModal({ onClose }: { onClose: () => void }) {
   const project = useStore((s) => s.project)!;
   const importStoryboard = useStore((s) => s.importStoryboard);
   const attachStoryboardImages = useStore((s) => s.attachStoryboardImages);
+  const fixCrowding = useStore((s) => s.fixCrowding);
   const toast = useStore((s) => s.toast);
 
   const [sections, setSections] = useState<StoryboardSection[] | null>(null);
@@ -25,7 +26,9 @@ export default function StoryboardModal({ onClose }: { onClose: () => void }) {
   const [chosen, setChosen] = useState(0);
   const [parseError, setParseError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
-  const [imported, setImported] = useState<{ scenes: number; needsReview: number } | null>(null);
+  const [imported, setImported] = useState<{ scenes: number; needsReview: number; split: number } | null>(
+    null
+  );
   const [attaching, setAttaching] = useState(false);
   const [attached, setAttached] = useState<StoryboardImageResult | null>(null);
 
@@ -65,15 +68,19 @@ export default function StoryboardModal({ onClose }: { onClose: () => void }) {
   const section = sections?.[chosen] ?? null;
   const assetCount = useMemo(() => section?.beats.filter((b) => b.assetName).length ?? 0, [section]);
 
-  const doImport = () => {
+  const doImport = async () => {
     if (!section) return;
     const result = importStoryboard(section);
     if (result.scenes === 0) return; // the store already explained why
-    setImported(result);
+    // A beat is written to be spoken, not to be read off a frame, so an imported scene is where
+    // crowded captions come from. Splitting runs here, before the scenes get worked on — as its own
+    // undo step, so it can be reversed without losing the import.
+    const { split } = await fixCrowding();
+    setImported({ ...result, split });
     // Nothing left to do when the storyboard names no artwork (an unfilled generation brief) —
     // the prompts are in place, so close and let the normal image flow take over.
     if (assetCount === 0) {
-      toast(`${result.scenes} scenes imported.`);
+      toast(`${result.scenes + split} scenes imported.`);
       onClose();
     }
   };
@@ -211,6 +218,13 @@ export default function StoryboardModal({ onClose }: { onClose: () => void }) {
                 <span className="muted">Every beat was matched to the transcript.</span>
               )}
             </p>
+            {imported.split > 0 && (
+              <p className="muted small">
+                {imported.split} scene{imported.split === 1 ? ' was' : 's were'} split automatically because
+                the caption was too crowded to read. Both halves keep the beat's artwork; undo reverses just
+                the splitting.
+              </p>
+            )}
 
             {!attached && (
               <>

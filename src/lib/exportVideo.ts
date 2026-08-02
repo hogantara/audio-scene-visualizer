@@ -14,7 +14,7 @@ import {
 } from './caption';
 import { computeSceneMix, edgeFadeAlpha, smoothstep, TRANSITION_SEC } from './transition';
 import { sceneWords } from './scenes';
-import { font } from './fonts';
+import { font, loadCaptionFont } from './fonts';
 
 const W = 1920;
 const H = 1080;
@@ -93,12 +93,7 @@ export async function exportVideo(
     })
   );
   const f = font(project.captionFont);
-  const primaryFamily = f.family.split(',')[0].trim();
-  await Promise.allSettled([
-    document.fonts.load(`${f.weight} 64px ${primaryFamily}`),
-    document.fonts.load(`${f.bold} 64px ${primaryFamily}`),
-    document.fonts.load(`italic ${f.weight} 64px ${primaryFamily}`),
-  ]);
+  await loadCaptionFont(f);
 
   // Pre-compute each scene's caption layout once (fixed 1080p frame → font auto-fit is stable).
   const measure = makeMeasure(f.family, f.weight, f.bold);

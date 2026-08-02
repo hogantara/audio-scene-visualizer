@@ -268,6 +268,22 @@ export default function SceneEditor({ sceneId }: { sceneId: string }) {
               <WarningCircle size={12} weight="fill" /> Timing estimated — check the waveform
             </div>
           )}
+          {scene.crowded && (
+            <div
+              className="review-badge"
+              title="This caption is too dense to read comfortably, and there's no sentence or clause boundary to split it at — edit the text down, or split it by hand where it reads best."
+            >
+              <WarningCircle size={12} weight="fill" /> Caption crowded — split or trim by hand
+            </div>
+          )}
+          {scene.autoSplit && !scene.crowded && (
+            <div
+              className="review-badge muted-badge"
+              title="This cut wasn't in the storyboard: the beat's caption was too crowded to read, so it was split at the nearest sentence or clause boundary."
+            >
+              <Scissors size={12} weight="bold" /> Split automatically — caption was crowded
+            </div>
+          )}
         </div>
         <div className="row gap editor-actions">
           <button
