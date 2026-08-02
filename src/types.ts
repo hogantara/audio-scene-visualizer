@@ -34,6 +34,16 @@ export interface Scene {
    * human check — every other imported scene is cut on actual silence.
    */
   estimatedBounds?: boolean;
+  /**
+   * Set on both halves when the caption-crowding pass split this scene automatically, so the editor
+   * can say the cut wasn't authored (see lib/crowding).
+   */
+  autoSplit?: boolean;
+  /**
+   * Set when the caption is too crowded to read and the crowding pass found no defensible place to
+   * cut it (one long unbroken sentence, or a scene already split as far as it may be). Needs a human.
+   */
+  crowded?: boolean;
 }
 
 /** One transcription unit (~10 min of audio). `words === null` means not yet transcribed, enabling resume-on-retry. */

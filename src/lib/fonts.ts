@@ -30,3 +30,17 @@ export const DEFAULT_CAPTION_ENTRANCE: CaptionEntrance = 'fade';
 export function font(id: string): FontOption {
   return FONTS.find((f) => f.id === id) ?? FONTS[0];
 }
+
+/**
+ * Wait for a caption face's weights to be usable for measurement. Text measured before the webfont
+ * loads is measured in the fallback face, so anything that decides layout from it (export framing,
+ * crowding detection) has to await this first.
+ */
+export async function loadCaptionFont(f: FontOption): Promise<void> {
+  const primary = f.family.split(',')[0].trim();
+  await Promise.allSettled([
+    document.fonts.load(`${f.weight} 64px ${primary}`),
+    document.fonts.load(`${f.bold} 64px ${primary}`),
+    document.fonts.load(`italic ${f.weight} 64px ${primary}`),
+  ]);
+}

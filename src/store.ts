@@ -8,7 +8,12 @@ import {
   DEFAULT_CAPTION_SCALE,
   DEFAULT_CAPTION_STYLE,
   DEFAULT_CAPTION_ENTRANCE,
+  font,
+  loadCaptionFont,
 } from './lib/fonts';
+import { makeMeasure } from './lib/caption';
+import { autoSplitCrowded, countCrowded } from './lib/crowding';
+import type { CrowdingResult } from './lib/crowding';
 import * as db from './lib/db';
 import type { ProjectSummary } from './lib/db';
 import { decodeAudio, computePeaks, validateFile, planChunks, encodeWavSlice, MAX_DURATION_SEC, DecodedAudio } from './lib/audio';
@@ -149,6 +154,12 @@ interface State {
    * Returns how many scenes were created and how many need a timing check.
    */
   importStoryboard: (section: StoryboardSection) => { scenes: number; needsReview: number };
+  /**
+   * Split every scene whose caption is too crowded to read comfortably (see lib/crowding), marking
+   * any that can't be split safely for a human. Runs after a storyboard import and on demand from
+   * the scene list. Its own undo step, so the splitting can be reversed without losing the import.
+   */
+  fixCrowding: () => Promise<CrowdingResult>;
   /**
    * Attach images to imported scenes by matching filenames against their `assetName`. Takes a whole
    * folder's worth of files; non-images and files no scene asked for are ignored.
@@ -799,6 +810,23 @@ export const useStore = create<State>((set, get) => {
       return { scenes: scenes.length, needsReview: unaligned.length };
     },
 
+    fixCrowding: async () => {
+      const none: CrowdingResult = { split: 0, flagged: 0 };
+      const project = get().project;
+      if (!project || project.scenes.length === 0) return none;
+      // Measuring in the fallback face would misjudge every caption, so wait for the real one.
+      const f = font(project.captionFont);
+      await loadCaptionFont(f);
+      const measure = makeMeasure(f.family, f.weight, f.bold);
+      if (countCrowded(project, measure) === 0 && !project.scenes.some((s) => s.crowded)) return none;
+
+      let result = none;
+      mutate((p) => {
+        result = autoSplitCrowded(p, measure);
+      });
+      return result;
+    },
+
     attachStoryboardImages: async (files) => {
       const project = get().project;
       if (!project) return { matched: 0, total: 0, missing: [] };
@@ -816,20 +844,27 @@ export const useStore = create<State>((set, get) => {
 
       const assigned: { sceneId: string; imgId: string; blob: File }[] = [];
       const missing: string[] = [];
+      // Several scenes can name the same file — a caption-crowding split leaves both halves of one
+      // beat pointing at its artwork — so each file is stored once and its id shared.
+      const savedIds = new Map<File, string>();
       for (const s of wanted) {
         const file = assetKeys(s.assetName!)
           .map((k) => byKey.get(k))
           .find(Boolean);
         if (!file) {
-          missing.push(s.assetName!);
+          if (!missing.includes(s.assetName!)) missing.push(s.assetName!);
           continue;
         }
-        const imgId = uid();
-        await db.saveImage(imgId, file);
+        let imgId = savedIds.get(file);
+        if (!imgId) {
+          imgId = uid();
+          await db.saveImage(imgId, file);
+          savedIds.set(file, imgId);
+        }
         assigned.push({ sceneId: s.id, imgId, blob: file });
       }
 
-      assigned.forEach((a) => addImageUrl(a.imgId, a.blob));
+      savedIds.forEach((imgId, blob) => addImageUrl(imgId, blob));
       // One mutation for the whole folder, so a bulk attach is a single undo step rather than one
       // per image. A scene deleted while the blobs were saving is simply skipped — gcImages
       // reclaims its orphaned blob.

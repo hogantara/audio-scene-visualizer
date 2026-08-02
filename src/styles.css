@@ -1394,3 +1394,12 @@ input.nudge-input:focus {
   font-size: 11.5px;
   cursor: help;
 }
+/* An automatic split is information, not a warning — the scene is fine, its cut just wasn't authored. */
+.review-badge.muted-badge {
+  background: #f1f5f9;
+  border-color: #e2e8f0;
+  color: #64748b;
+}
+.review-badge + .review-badge {
+  margin-left: 6px;
+}
